@@ -1,16 +1,15 @@
 
-CC = gcc
+CC = g++
+CFLAGS = -std=c++17
 
-BDER = ./bin
-DDER = ../obj
-IDER = ../
+BDIR = bin
+ODIR = ../obj
+IDIR = ..
+
 LIBS = -lavformat -lavcodec
 
-_DEP = indexing.o
-DEP = $(patsubst %,$(DDER)/%,$(_DEP))
+all : indexing
 
-all :
-
-% : %.c $(DEP)
-	$(CC) -o $(BDER)/$@ $< $(DEP) -I$(IDER) $(LIBS)
+% : %.cpp $(ODIR)/%.o
+	$(CC) $(CFLAGS) -o $(BDIR)/$@ $@.cpp $(ODIR)/$@.o -I$(IDIR) $(LIBS)
 
