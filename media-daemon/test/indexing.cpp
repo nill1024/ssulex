@@ -14,11 +14,12 @@ int main(int argc, char **argv)
     }
     av_register_all();
     try {
-        media_info m(argv[1]);
+        media m(argv[1]);
+        m.index();
         for (int64_t timestamp : m.get_segments())
             std::cout << timestamp << std::endl;
     }
-    catch (media_info_error e) {
+    catch (media_error e) {
         std::cerr << e.message << std::endl;
     }
     return 0;

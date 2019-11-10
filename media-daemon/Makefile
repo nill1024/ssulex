@@ -1,6 +1,6 @@
 
 CC = g++
-CFLAGS = -std=c++17
+CFLAGS = -std=c++17 -g
 
 ODIR = obj
 IDIR = .
@@ -8,7 +8,10 @@ IDIR = .
 _OBJ = indexing.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-all : $(OBJ)
+all : $(ODIR) $(OBJ)
+
+$(ODIR) :
+	mkdir $@
 
 $(ODIR)/%.o : %.cpp %.hpp
 	$(CC) $(CFLAGS) -c -o $@ $< -I$(IDIR)
