@@ -48,14 +48,7 @@ char *read_all(const char *path) {
     return buf;
 }
 
-int main(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <imdb_html>\n", argv[0]);
-        exit(1);
-    }
-
-    char *html = read_all(argv[1]);
-    imdb_parser imdb(html);
+void do_queries(imdb_parser &imdb) {
     for (std::string &q : imdb.help()) {
         try {
             auto r = imdb.query(q.c_str());
@@ -70,6 +63,25 @@ int main(int argc, char **argv) {
             std::cerr << "Failed to locate " << q << "." << std::endl;
         }
     }
+}
+
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <imdb_html>\n", argv[0]);
+        exit(1);
+    }
+
+    char *html = read_all(argv[1]);
+    imdb_parser imdb(html);
+
+    std::cout << "----- attempt 1 ----------" << std::endl;
+    do_queries(imdb);
+    std::cout << "-------------------------" << std::endl << std::endl;
+
+    std::cout << "----- attempt 2 ----------" << std::endl;
+    std::cout << imdb.to_json() << std::endl;
+    std::cout << "-------------------------" << std::endl << std::endl;
+
     free(html);
     return 0;
 }

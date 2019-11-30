@@ -53,3 +53,19 @@ std::vector<std::string> imdb_parser::get_thumbnail(CSelection selection) {
     return std::vector<std::string>(1, std::move(thumbnail));
 }
 
+nlohmann::json imdb_parser::to_json(void) {
+    nlohmann::json json;
+    for (std::string &key : help()) {
+        try {
+            auto values = query(key.c_str());
+            if (values.size() == 1)
+                json[key] = values[0];
+            else
+                json[key] = nlohmann::json(values);
+        }
+        // Ignore failed attempts.
+        catch (metadata_parser_error e) {}
+    }
+    return json;
+}
+

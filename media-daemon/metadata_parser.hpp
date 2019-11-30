@@ -14,6 +14,9 @@
 #include <gq/Document.h>
 #include <gq/Node.h>
 
+// json
+#include <nlohmann/json.hpp>
+
 struct metadata_parser_error
 {
     std::string message;
@@ -27,14 +30,7 @@ struct metadata_parser_error
     metadata_parser_error(metadata_parser_error &&e) : message(std::move(e.message)) {}
 };
 
-class metadata_parser {
-    virtual std::vector<std::string> query(const char *key) = 0;
-
-    // Get the list of valid queries.
-    virtual std::vector<std::string> help(void) = 0;
-};
-
-class imdb_parser : public metadata_parser
+class imdb_parser
 {
     // We parse HTML here.
     CDocument dom;
@@ -60,6 +56,7 @@ public:
         selectors.emplace("cast", "#cast-and-crew ul strong");
     }
 
+    nlohmann::json to_json(void);
     std::vector<std::string> query(const char *key);
     std::vector<std::string> help(void) {
         std::vector<std::string> v;
