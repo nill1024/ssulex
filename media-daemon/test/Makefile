@@ -5,21 +5,28 @@ CFLAGS = -std=c++17 -g
 BDIR = bin
 ODIR = ../obj
 IDIR = .. ../third-party
+
 INCLUDE = $(patsubst %,-I%,$(IDIR))
 
 _PKG_LIBS = libavutil libavcodec libavformat libavfilter gumbo
 PKG_LIBS = $(shell pkg-config --libs --cflags $(_PKG_LIBS))
 
-LIBS = -lgq
+LIBS = -lgq -lpthread
 
-_OBJ = indexing seek_remux parse_imdb
-OBJ = $(patsubst %,$(BDIR)/%,$(_OBJ))
+_OBJ = common.o indexing.o metadata_parser.o
+OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-all : $(BDIR) $(OBJ)
+_BIN = indexing seek_remux parse_imdb
+BIN = $(patsubst %,$(BDIR)/%,$(_BIN))
+
+all : $(BDIR) $(BIN)
 
 $(BDIR):
 	mkdir $@
 
-$(BDIR)/% : %.cpp $(shell find $(ODIR) -name '*.o')
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(shell find $(ODIR) -name '*.o') $(PKG_LIBS) $(LIBS)
+$(BDIR)/% : %.cpp $(OBJ)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(OBJ) $(PKG_LIBS) $(LIBS)
+
+clean :
+	bash -c "if [[ -d $(BDIR) ]]; then rm -r $(BDIR); fi"
 
