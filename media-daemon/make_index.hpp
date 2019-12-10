@@ -7,12 +7,11 @@
 
 namespace ssulex {
 
-auto make_index(std::string root) -> nlohmann::json;
+nlohmann::json update_index(nlohmann::json from, nlohmann::json to = {});
+auto index_fs(std::string root) -> nlohmann::json;
 auto is_video(std::string path) -> bool;
 auto get_file_name(std::string path) -> std::string;
 auto make_id(std::string file_name) -> std::string;
-auto update_index(nlohmann::json &&index) -> void;
-auto update_index(nlohmann::json &index) -> void;
 
 }
 

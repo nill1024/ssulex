@@ -5,6 +5,7 @@
 #include <filesystem>
 
 // ssulex
+#include <media.hpp>
 #include <make_index.hpp>
 #include <metadata_parser.hpp>
 
@@ -12,7 +13,20 @@ using namespace std::string_literals;
 
 namespace ssulex {
 
-auto make_index(std::string root) -> nlohmann::json {
+nlohmann::json update_index(nlohmann::json from, nlohmann::json to) {
+    for (auto &e : from.items()) {
+        if (!to.contains(e.key())) {
+            media m(e.value()["path"]);
+            m.index();
+            to[e.key()] = e.value();
+            to[e.key()]["intra"] = m.get_segments();
+            to[e.key()]["duration"] = m.get_duration();
+        }
+    }
+    return to;
+}
+
+auto index_fs(std::string root) -> nlohmann::json {
     auto index = nlohmann::json{};
 
     for (auto &&it : std::filesystem::recursive_directory_iterator{root}) {
@@ -22,8 +36,8 @@ auto make_index(std::string root) -> nlohmann::json {
             auto id = make_id(file_name);
 
             if (not index.contains(id)) {
-                index["index"][id]["file_name"] = file_name;
-                index["index"][id]["path"] = path;
+                index[id]["file_name"] = file_name;
+                index[id]["path"] = path;
             }
         }
     }
@@ -50,15 +64,6 @@ auto get_file_name(std::string path) -> std::string {
 auto make_id(std::string file_name) -> std::string {
 
     return std::to_string(std::hash<std::string>{}(file_name));
-}
-
-auto update_index(nlohmann::json &&index) -> void {
-    update_index(index);
-}
-
-auto update_index(nlohmann::json &index) -> void {
-    auto ofile = std::ofstream{"setting.json", std::ios::out | std::ios::trunc};
-    ofile<<index.dump(4);
 }
 
 }

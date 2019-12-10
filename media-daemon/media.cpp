@@ -25,9 +25,9 @@ enum AVPixelFormat get_vaapi_format(AVCodecContext *ctx, const enum AVPixelForma
 
 /////////////////////////////////////////////////////////
 
-media::media(const char *path) : path(path)
+media::media(std::string path) : path(std::move(path))
 {
-    if (avformat_open_input(&context, path, NULL, NULL) < 0)
+    if (avformat_open_input(&context, this->path.c_str(), NULL, NULL) < 0)
         throw media_error("avformat_open_input failed -> %s.", path);
 
     if (avformat_find_stream_info(context, NULL) < 0)
@@ -76,8 +76,9 @@ void media::index_segments(int stream_index)
                 segments.push_back(packet.dts); //  이 프레임을 첫 조각의 시작으로!
             // 현재 조각이 2초를 넘었다면,
             else if (segment_duration > 2.) {
-                segment_duration = .0;
+                duration.push_back(segment_duration);
                 segments.push_back(packet.dts); // 새로운 조각을 시작한다!
+                segment_duration = .0;
             }
         }
 
@@ -94,6 +95,13 @@ const std::vector<int64_t> &media::get_segments(void)
     if (segments.size() == 0)
         throw media_error("None indexed.");
     return segments;
+}
+
+const std::vector<double> &media::get_duration(void)
+{
+    if (duration.size() == 0)
+        throw media_error("None indexed.");
+    return duration;
 }
 
 void media::index(void)

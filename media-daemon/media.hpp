@@ -42,6 +42,7 @@ class media
     // The list of I frame timestamps from which to start encoding.
     // Currently, the gap between those is at least 2 seconds.
     std::vector<int64_t> segments;
+    std::vector<double> duration;
     void index_segments(int stream_index);
 
     // For all AVPackets in index-th segment, call handler.
@@ -58,15 +59,22 @@ class media
 
 public:
 
-    media(const char *path);
+    media(std::string path);
+    media(const char *path) : media(std::string(path)) {}
     ~media(void);
 
     // Exports or loads 'segments' to remember what we've already indexed.
     const std::vector<int64_t> &get_segments(void);
+    const std::vector<double> &get_duration(void);
     template<typename T>
     void load_segments(T &&segments) {
         this->segments = std::forward<T>(segments);
     }
+    template<typename T>
+    void load_duration(T &&duration) {
+        this->duration = std::forward<T>(duration);
+    }
+    
 
     void index(void);
 

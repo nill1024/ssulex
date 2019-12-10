@@ -12,7 +12,9 @@ int main(int argc, char **argv) {
         ssulex::report_error("Usage: %s <media path>", argv[0]);
     
     try {
-        std::cout << ssulex::make_index(argv[1]) << std::endl;
+//        std::cout << ssulex::index_fs(argv[1]) << std::endl;
+        nlohmann::json i = ssulex::index_fs(argv[1]);
+        std::cout << ssulex::update_index(i) << std::endl;
     }
     catch (std::filesystem::filesystem_error e) {
         std::cerr << e.what() << std::endl;

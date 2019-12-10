@@ -5,6 +5,7 @@
 // c++
 #include <iostream>
 #include <string>
+#include <filesystem>
 
 // third-party
 #include <nlohmann/json.hpp>
@@ -12,17 +13,36 @@
 
 // ssulex
 #include <common.hpp>
+#include <make_index.hpp>
 
-void start_server(nlohmann::json &setting) {
+nlohmann::json setting;
+nlohmann::json raw;
+
+void load_context(std::string path) {
+    setting = nlohmann::json::parse(ssulex::file2string(path));
+
+    if (!setting.contains("media"))
+        ssulex::report_error("Failed to locate the media directory.");
+    if (!setting.contains("config"))
+        ssulex::report_error("Failed to locate the config path.");
+
+    std::string raw_path = setting["config"].get<std::string>() + "/raw.json";
+    raw = {};
+    if (std::filesystem::exists(std::filesystem::path(raw_path)))
+        raw = nlohmann::json::parse(ssulex::file2string(raw_path));
+    raw = ssulex::update_index(ssulex::index_fs(setting["media"]), raw);
+    ssulex::string2file(raw_path, raw.dump());
+
+    std::cout << "Finished loading contexts." << std::endl;
+}
+
+void start_server(void) {
     httplib::Server server;
 
-    try {
+    if (setting.contains("static")) {
         std::string path = setting["static"].get<std::string>();
         server.set_base_dir(path.c_str());
-        std::cout << "Mapping " << path << " to /." << std::endl;
-    }
-    catch (nlohmann::detail::type_error e) {
-        ssulex::report_error("static was not set in the setting.");
+        std::cout << "static file: " << path << "-> /" << std::endl;
     }
 
     server.listen("0.0.0.0", 8888);
@@ -31,7 +51,7 @@ void start_server(nlohmann::json &setting) {
 int main(int argc, char **argv) {
     if (argc != 2)
         ssulex::report_error("Usage : %s <setting.json>", argv[0]);
-    auto setting = nlohmann::json::parse(ssulex::file2string(argv[1]));
-    start_server(setting);
+    load_context(argv[1]);
+    start_server();
     return 0;
 }

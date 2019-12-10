@@ -12,6 +12,7 @@ namespace ssulex {
     void remove_spaces(std::string &s);
     std::string remove_spaces(std::string &&s);
     std::string file2string(std::string path);
+    void string2file(std::string path, std::string contents);
 
     template<typename... Args>
     void report_error(const char *format, Args ...args) {

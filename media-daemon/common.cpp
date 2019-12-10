@@ -53,6 +53,17 @@ namespace ssulex {
         fclose(fp);
         return s;
     }
+
+    void string2file(std::string path, std::string contents) {
+        FILE *fp = fopen(path.c_str(), "wb");
+        if (fp == NULL)
+            ssulex::report_error("Failed to open %s.", path);
+
+        if (fwrite(contents.c_str(), 1, contents.size(), fp) != contents.size())
+            ssulex::report_error("Failed to write the string.");
+
+        fclose(fp);
+    }
 };
 
 
