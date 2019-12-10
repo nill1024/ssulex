@@ -8,7 +8,7 @@ IDIR = . ./third-party
 
 INCLUDE = $(patsubst %,-I%,$(IDIR))
 
-_OBJ = common.o indexing.o metadata_parser.o main.o
+_OBJ = common.o media.o metadata_parser.o main.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 _PKG_LIBS = libavutil libavcodec libavformat libavfilter gumbo

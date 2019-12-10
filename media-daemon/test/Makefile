@@ -13,10 +13,10 @@ PKG_LIBS = $(shell pkg-config --libs --cflags $(_PKG_LIBS))
 
 LIBS = -lgq -lpthread
 
-_OBJ = common.o indexing.o metadata_parser.o
+_OBJ = common.o media.o metadata_parser.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-_BIN = indexing seek_remux parse_imdb
+_BIN = media seek_remux parse_imdb
 BIN = $(patsubst %,$(BDIR)/%,$(_BIN))
 
 all : $(BDIR) $(BIN)
