@@ -28,6 +28,31 @@ namespace ssulex {
         remove_spaces(s);
         return s;
     }
+
+    std::string file2string(std::string path) {
+        FILE *fp = fopen(path.c_str(), "rb");
+        if (fp == NULL)
+            ssulex::report_error("Failed to open %s.", path);
+    
+        if (fseek(fp, 0, SEEK_END) != 0)
+            ssulex::report_error("Failed to seek to the end.");
+    
+        long len = ftell(fp);
+        if (len == -1L)
+            ssulex::report_error("Failed to get the file size.");
+    
+        if (fseek(fp, 0, SEEK_SET) != 0)
+            ssulex::report_error("Failed to seek to the start.");
+    
+        std::string s;
+        s.resize(len);
+    
+        if (fread(s.data(), 1, len, fp) != len)
+            ssulex::report_error("Failed to read the whole file.");
+    
+        fclose(fp);
+        return s;
+    }
 };
 
 
