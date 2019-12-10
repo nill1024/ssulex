@@ -12,10 +12,10 @@ using namespace std::string_literals;
 
 namespace ssulex {
 
-auto make_index(void) -> void {
+auto make_index(std::string root) -> nlohmann::json {
     auto index = nlohmann::json{};
 
-    for (auto &&it : std::filesystem::recursive_directory_iterator{"./"}) {
+    for (auto &&it : std::filesystem::recursive_directory_iterator{root}) {
         auto path = it.path().string();
         if (it.is_regular_file() && is_video(path)) {
             auto file_name = get_file_name(path);
@@ -28,7 +28,7 @@ auto make_index(void) -> void {
         }
     }
 
-    update_index(index);
+    return index;
 }
 
 auto is_video(std::string path) -> bool {

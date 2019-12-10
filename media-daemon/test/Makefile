@@ -16,7 +16,7 @@ LIBS = -lgq -lpthread -lstdc++fs
 _OBJ = common.o media.o metadata_parser.o make_index.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-_BIN = indexing seek_remux parse_imdb
+_BIN = indexing seek_remux parse_imdb make_index
 BIN = $(patsubst %,$(BDIR)/%,$(_BIN))
 
 all : $(BDIR) $(BIN)
