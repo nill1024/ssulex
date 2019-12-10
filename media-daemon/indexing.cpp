@@ -1,85 +1,63 @@
+#include "make_index.hpp"
 
-extern "C" {
-    #include <libavformat/avformat.h>
-}
+#include <iostream>
+#include <fstream>
+#include <filesystem>
+#include <vector>
+#include <array>
+#include <functional>
 
-#include <string>
-#include <list>
-#include <utility>
-#include <indexing.hpp>
+using namespace std::string_literals;
 
-media_info::media_info(std::string path) : path(std::move(path))
-{
-    if (avformat_open_input(&context, this->path.c_str(), NULL, NULL) < 0)
-        throw media_info_error("avformat_open_input failed -> " + this->path + ".");
+namespace ssulex {
 
-    if (avformat_find_stream_info(context, NULL) < 0)
-        throw media_info_error("avformat_find_stream_info failed -> " + this->path + ".");
+auto make_index(void) -> void {
+    auto index = nlohmann::json{};
 
-    locate_streams();
+    for (auto &&it : std::filesystem::recursive_directory_iterator{"./"}) {
+        auto path = it.path().string();
+        if (it.is_regular_file() && is_video(path)) {
+            auto file_name = get_file_name(path);
+            auto id = make_id(file_name);
 
-    if (video_index >= 0)
-        index_video();
-    else
-        index_audio();
-}
-
-media_info::~media_info(void)
-{
-    if (context)
-        avformat_close_input(&context);
-}
-
-void media_info::locate_streams(void)
-{
-    for (int i=0; i<context->nb_streams; i++)
-        if (video_index < 0
-            && context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
-            video_index = i;
-        else if (audio_index < 0
-            && context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
-            audio_index = i;
-
-    if (video_index < 0 && audio_index < 0)
-        throw stream_not_found("Not a media file.");
-}
-
-void media_info::index_video(void)
-{
-    index_segments();
-}
-
-void media_info::index_audio(void)
-{
-    throw stream_not_supported("An audio file is not yet supported.");
-}
-
-void media_info::index_segments(void)
-{
-    double time_base = av_q2d(context->streams[video_index]->time_base);
-    double segment_duration = .0;
-    segments.push_back(0);
-
-    AVPacket packet;
-    while (av_read_frame(context, &packet) == 0)
-    {
-        if (packet.stream_index != video_index)
-            continue;
-        if ((packet.flags & AV_PKT_FLAG_KEY) > 0
-            && segment_duration > 2.)
-        {
-            segment_duration = .0;
-            segments.push_back(packet.dts);
+            if (not index.contains(id)) {
+                index["index"][id]["file_name"] = file_name;
+                index["index"][id]["path"] = path;
+            }
         }
-        if (packet.duration == 0)
-            throw stream_not_supported("The video stream lacks a timestamp.");
-        segment_duration += time_base * packet.duration;
-        av_packet_unref(&packet);
     }
+
+    update_index(index);
 }
 
-const std::list<int64_t> &media_info::get_segments(void)
-{
-    return segments;
+auto is_video(std::string path) -> bool {
+    return path.find(".mp4") != std::string::npos
+        || path.find(".mkv") != std::string::npos
+        || path.find(".avi") != std::string::npos;
 }
 
+auto get_file_name(std::string path) -> std::string {
+    auto pos = path.rfind('\\');
+    if (pos == std::string::npos) {
+        pos = path.rfind('/');
+    }
+
+    return path.substr(pos+1, path.length()-(pos+1));
+}
+
+// TODO: c++ std hash 사용 중 uuid 고려
+auto make_id(std::string file_name) -> std::string {
+
+    return std::to_string(std::hash<std::string>{}(file_name));
+}
+
+auto update_index(nlohmann::json &&index) -> void {
+    update_index(index);
+}
+
+auto update_index(nlohmann::json &index) -> void {
+    auto ofile = std::ofstream{"setting.json", std::ios::out | std::ios::trunc};
+    ofile<<index.dump(4);
+}
+
+}
