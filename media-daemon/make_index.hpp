@@ -1,8 +1,9 @@
 
-#ifndef SSULEX_MAKE_INDEX
-#define SSULEX_MAKE_INDEX
+#ifndef _MAKE_INDEX_HPP_
+#define _MAKE_INDEX_HPP_ 
 
-#include "json.hpp"
+// ssulex
+#include <nlohmann/json.hpp>
 
 namespace ssulex {
 

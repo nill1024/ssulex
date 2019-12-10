@@ -8,13 +8,13 @@ IDIR = . ./third-party
 
 INCLUDE = $(patsubst %,-I%,$(IDIR))
 
-_OBJ = common.o media.o metadata_parser.o main.o
+_OBJ = common.o media.o metadata_parser.o make_index.o main.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 _PKG_LIBS = libavutil libavcodec libavformat libavfilter gumbo
 PKG_LIBS = $(shell pkg-config --libs --cflags $(_PKG_LIBS))
 
-LIBS = -lgq -lpthread
+LIBS = -lgq -lpthread -lstdc++fs
 
 $(BDIR)/ssulex : $(ODIR) $(OBJ) $(BDIR)
 	$(CC) -o $@ $(OBJ) $(PKG_LIBS) $(LIBS)
