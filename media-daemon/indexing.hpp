@@ -11,6 +11,7 @@ extern "C" {
 #include <vector>
 #include <utility>
 #include <map>
+#include <queue>
 
 struct media_error
 {
@@ -50,7 +51,9 @@ class media
     void remux_packet(AVPacket *packet, output_media *om);
     void decode_packet(AVPacket *packet, output_media *om);
 
-    void begin_decode(int index);
+    void begin_decode(void);
+    void begin_video_decode(void);
+//    void begin_audio_decode(void);
     void end_decode(void);
 
 public:
@@ -68,20 +71,27 @@ public:
     void index(void);
 
     void remux(int index);
-    void transcode(int index);
+    void transcode(int index, uint64_t bit_rate = 3000000);
 };
-
-#define VIDEO_ENCODER  "libx264"
 
 class output_media
 {
     std::string path;
     AVFormatContext *context = NULL;
     AVCodecContext *encoder_context = NULL;
+    AVCodecContext *decoder_context = NULL;
 
     double start = 0.;
     std::map<int, int> index;
     std::map<int, int64_t> delay;
+    uint64_t bit_rate = 3000000;
+
+    // Once we get the first video frame, can we initialize an VAAPI encoder.
+    // Until then, we're not ready to write the container header, so any packets
+    // we got in between (namely, audio packets) shall be pushed onto this queue.
+    std::queue<AVPacket *> cache;
+
+    bool initialized = false;
 
 public:
 
@@ -96,9 +106,13 @@ public:
     }
     ~output_media(void);
 
+    void set_bit_rate(int64_t bit_rate) {
+        // FIXME: What's the legal range of bit_rate here?
+        this->bit_rate = bit_rate;
+    }
+
     void map_stream(AVStream *from, AVCodecContext *decoder_context = NULL);
     void init(AVStream *stream, AVPacket *packet);
-    void push_prologue(void);
     void push_packet(AVStream *stream, AVPacket *packet);
     void push_frame(AVStream *stream, AVFrame *frame);
     void push_epilogue(void);

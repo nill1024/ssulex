@@ -25,14 +25,13 @@ int main(int argc, char **argv)
         std::cerr << "Usage: " << argv[0] << " <input> <segments>" << std::endl;
         return 1;
     }
-    av_register_all();
     try {
         media m(argv[1]);
         m.load_segments(read_segments(argv[2]));
 //        m.remux(5);
 //        m.remux(6);
         m.transcode(5);
-        m.transcode(6);
+        m.transcode(6, 10000000);
     } catch (media_error e) {
         std::cerr << e.message << std::endl;
     }

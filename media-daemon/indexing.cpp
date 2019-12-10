@@ -10,6 +10,21 @@ extern "C" {
 #include <utility>
 #include <indexing.hpp>
 
+/////////////////////////////////////////////////////////
+
+AVBufferRef *hw_device_ctx = NULL;
+
+enum AVPixelFormat get_vaapi_format(AVCodecContext *ctx, const enum AVPixelFormat *pix_fmts) {
+    const enum AVPixelFormat *p;
+    for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+        if (*p == AV_PIX_FMT_VAAPI)
+            return *p;
+    }
+    return AV_PIX_FMT_NONE;
+}
+
+/////////////////////////////////////////////////////////
+
 media::media(const char *path) : path(path)
 {
     if (avformat_open_input(&context, path, NULL, NULL) < 0)
@@ -160,21 +175,33 @@ void media::decode_packet(AVPacket *packet, output_media *om)
             if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
                 break;
             else if (ret < 0)
-                throw media_error("Failed to encode.");
+                throw media_error("Failed to decode.");
     
             om->push_frame(context->streams[video_index], frame);
         }
-        
+
         av_frame_free(&frame);
     }
     else
         om->push_packet(context->streams[packet->stream_index], packet);
 }
 
-void media::begin_decode(int index)
+void media::begin_decode(void)
 {
+    begin_video_decode();
+//    begin_audio_decode();
+}
+
+void media::begin_video_decode(void)
+{
+    // FIXME: 요고 해제할 곳이 마땅치 않음...
+    if (hw_device_ctx == NULL) {
+        if (av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_VAAPI, NULL, NULL, 0) < 0)
+            throw media_error("Failed to create a VAAPI device.");
+    }
+    
     // 해당 코덱의 디코더 찾기
-    AVCodec *decoder = avcodec_find_decoder(context->streams[index]->codecpar->codec_id);
+    AVCodec *decoder = avcodec_find_decoder(context->streams[video_index]->codecpar->codec_id);
     if (!decoder)
         throw media_error("Failed to find the decoder.");
 
@@ -183,8 +210,14 @@ void media::begin_decode(int index)
     if (!decoder_context)
         throw media_error("Failed to allocate the decoder context.");
 
-    if (avcodec_parameters_to_context(decoder_context, context->streams[index]->codecpar) < 0)
+    if (avcodec_parameters_to_context(decoder_context, context->streams[video_index]->codecpar) < 0)
         throw media_error("Failed to copy decoder parameters.");
+
+    // VAAPI 장치 연결
+    decoder_context->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+    if (!decoder_context->hw_device_ctx)
+        throw media_error("Failed to ref a VAAPI device.");
+    decoder_context->get_format = get_vaapi_format;
 
     // 디코더를 열고, 이를 컨텍스트에 반영
     if (avcodec_open2(decoder_context, decoder, NULL) < 0)
@@ -201,18 +234,17 @@ void media::remux(int index)
     output_media om("%02d.mp4", index);
     om.map_stream(context->streams[video_index]);
     om.map_stream(context->streams[audio_index]);
-    om.push_prologue();
     for_each_AVPacket(index, &om, &media::remux_packet);
     om.push_epilogue();
 }
 
-void media::transcode(int index)
+void media::transcode(int index, uint64_t bit_rate)
 {
-    begin_decode(video_index);
+    begin_decode();
     output_media om("%02d.mp4", index);
+    om.set_bit_rate(bit_rate);
     om.map_stream(context->streams[video_index], decoder_context);
     om.map_stream(context->streams[audio_index]);
-    om.push_prologue();
     for_each_AVPacket(index, &om, &media::decode_packet);
     decode_packet(NULL, &om);
     om.push_frame(context->streams[video_index], NULL);
@@ -240,69 +272,28 @@ void output_media::map_stream(AVStream *from, AVCodecContext *decoder_context)
     if (to == NULL)
         throw media_error("Failed to allocate a new stream.");
 
+    // FIXME: from <-> decoder_context가 전혀 관련 없을 수 있음.
     if (decoder_context) {
-
-        AVCodec *encoder;
-
-        // 미리 설정한 인코더를 코덱 타입에 맞게 찾는다.
-        if (decoder_context->codec_type == AVMEDIA_TYPE_VIDEO)
-            encoder = avcodec_find_encoder_by_name(VIDEO_ENCODER);
+        if (from->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+            this->decoder_context = decoder_context;
         else
-            throw media_error("Audio encoding is currently not supported.");
-
-        // 시스템에 인코더가 없으면,
-        if (!encoder)
-            throw media_error("Failed to find the encoder.");
-
-        // 인코딩에 사용할 컨텍스트를 할당한다.
-        encoder_context = avcodec_alloc_context3(encoder);
-        if (!encoder_context)
-            throw media_error("Failed to allocate an encoder context.");
-
-        encoder_context->height = decoder_context->height;
-        encoder_context->width = decoder_context->width;
-        encoder_context->sample_aspect_ratio = decoder_context->sample_aspect_ratio;
-        encoder_context->pix_fmt = decoder_context->pix_fmt;
-        encoder_context->time_base = from->time_base; // ???
-
-        if (avcodec_open2(encoder_context, encoder, NULL) < 0)
-            throw media_error("Failed to open the encoder.");
-
-        if (avcodec_parameters_from_context(to->codecpar, encoder_context) < 0)
-            throw media_error("Failed to copy codec parameters.");
+            throw media_error("Audio decoding is not yet supported.");
     }
-    else
-        if (avcodec_parameters_copy(to->codecpar, from->codecpar) < 0)
-            throw media_error("Failed to copy codec parameters.");
-    
+
+    // Defaults to stream copy.
+    if (avcodec_parameters_copy(to->codecpar, from->codecpar) < 0)
+        throw media_error("Failed to copy codec parameters.");
+
     to->codecpar->codec_tag = 0;
     index.emplace(from->index, to->index);
-}
-
-void output_media::push_prologue(void)
-{
-    if (!(context->oformat->flags & AVFMT_NOFILE)) {
-        if (avio_open(&context->pb, path.c_str(), AVIO_FLAG_WRITE) < 0)
-            throw media_error("Failed to open %s.", path.c_str());
-    }
-
-    if (avformat_write_header(context, NULL) < 0)
-        throw media_error("Failed to write a header for %s.", path.c_str());
 }
 
 void output_media::push_packet(AVStream *stream, AVPacket *packet)
 {
     // Reject if the stream was not mapped.
     if (index.find(stream->index) == index.end())
-        throw media_error("");
+        throw media_error("%d is an invalid stream index.", stream->index);
 
-/*
-    if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
-        && delay.find(stream->index) == delay.end()) {
-        start = packet->dts * av_q2d(stream->time_base);
-        delay.emplace(stream->index, packet->dts);
-    }
-*/
     if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO
         && delay.find(stream->index) == delay.end()) {
         double start = packet->dts * av_q2d(stream->time_base);
@@ -316,12 +307,78 @@ void output_media::push_packet(AVStream *stream, AVPacket *packet)
     packet->duration = av_rescale_q(packet->duration, stream->time_base, context->streams[index[stream->index]]->time_base);
     packet->stream_index = index[stream->index];
 
-    if (av_interleaved_write_frame(context, packet) < 0)
-        throw media_error("Failed to write packet.");
+    // VAAPI 인코더가 아직 초기화 안 됐으면,
+    if (encoder_context == NULL) {
+        // 요 패킷은 잠시 cache에 모셔두자.
+        AVPacket *dup = (AVPacket *)malloc(sizeof(AVPacket));
+        av_init_packet(dup);
+        av_packet_ref(dup, packet);
+        cache.emplace(dup);
+    }
+    else {
+        // 처음이라고?
+        if (!initialized) {
+
+            // 파일 열고,
+            if (!(context->oformat->flags & AVFMT_NOFILE)) {
+                if (avio_open(&context->pb, path.c_str(), AVIO_FLAG_WRITE) < 0)
+                    throw media_error("Failed to open %s.", path.c_str());
+            }
+        
+            // 헤더 쓰자...
+            if (avformat_write_header(context, NULL) < 0)
+                throw media_error("Failed to write a header for %s.", path.c_str());
+
+            // 밀린 패킷을 몽땅 써줍니다.
+            while (cache.size()) {
+                AVPacket *dup = cache.front();
+                cache.pop();
+                if (av_interleaved_write_frame(context, dup) < 0)
+                    throw media_error("Failed to flush `AVPacket`s.");
+                av_packet_unref(dup);
+                free(dup);
+            } 
+
+            initialized = true;
+        }
+
+        if (av_interleaved_write_frame(context, packet) < 0)
+            throw media_error("Failed to write packet.");
+    }
+
 }
 
 void output_media::push_frame(AVStream *stream, AVFrame *frame)
 {
+    if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && encoder_context == NULL) {
+
+        AVCodec *encoder;
+        if (!(encoder = avcodec_find_encoder_by_name("h264_vaapi")))
+            throw media_error("Failed to find `h264_vaapi`.");
+
+        encoder_context = avcodec_alloc_context3(encoder);
+        if (!encoder_context)
+            throw media_error("Failed to allocate an encoder context.");
+        
+        encoder_context->hw_frames_ctx = av_buffer_ref(decoder_context->hw_frames_ctx);
+        if (!encoder_context->hw_frames_ctx)
+            throw media_error("Failed to ref `decoder_context->hw_frames_ctx`.");
+
+        encoder_context->time_base = av_inv_q(decoder_context->framerate);
+        encoder_context->pix_fmt = AV_PIX_FMT_VAAPI;
+        encoder_context->width = decoder_context->width;
+        encoder_context->height = decoder_context->height;
+        encoder_context->bit_rate = bit_rate;
+        av_opt_set(encoder_context->priv_data, "rc_mode", "CBR", 0);
+
+        if (avcodec_open2(encoder_context, encoder, NULL) < 0)
+            throw media_error("Failed to open `h264_vaapi`.");
+
+        context->streams[index[stream->index]]->time_base = encoder_context->time_base;
+        if (avcodec_parameters_from_context(context->streams[index[stream->index]]->codecpar, encoder_context))
+            throw media_error("Failed to copy the stream parameters.");
+    } 
+
     AVPacket *packet = av_packet_alloc();
     if (!packet)
         throw media_error("Failed to allocate a AVPacket.");

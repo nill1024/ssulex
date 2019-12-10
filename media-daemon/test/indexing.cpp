@@ -12,7 +12,6 @@ int main(int argc, char **argv)
         std::cerr << "No file specified." << std::endl;
         return 1;
     }
-    av_register_all();
     try {
         media m(argv[1]);
         m.index();
